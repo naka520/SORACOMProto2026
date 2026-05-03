@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "japaneast"
+    },
+    "projectName": {
+      "value": "monooki"
+    },
+    "environment": {
+      "value": "dev"
+    },
+    "containerName": {
+      "value": "mono-oki-images"
+    },
+    "enableBlobPublicRead": {
+      "value": false
+    },
+    "createFunctionApp": {
+      "value": true
+    },
+    "createStaticWebApp": {
+      "value": true
+    },
+    "staticWebAppSku": {
+      "value": "Free"
+    },
+    "staticWebAppLocation": {
+      "value": "East Asia"
+    },
+    "staticWebAppRepositoryUrl": {
+      "value": ""
+    },
+    "staticWebAppBranch": {
+      "value": "main"
+    },
+    "tags": {
+      "value": {
+        "project": "SORACOMProto2026",
+        "env": "dev"
+      }
+    }
+  }
+}

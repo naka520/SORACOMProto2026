@@ -5,20 +5,25 @@ import { useRouter } from "next/navigation";
 
 // 診断結果の型定義
 interface DiagnosisResult {
-  output: {
-    shindan: string;
-    recommend: string;
-  };
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    model: string;
-    model_id: string;
-    byol: boolean;
-    service: string;
-    credit: number;
-  };
+  output?: Record<string, unknown>;
+  usage?: Record<string, unknown>;
+}
+
+function readOutputText(
+  output: Record<string, unknown> | undefined,
+  keys: string[],
+  fallback: string
+): string {
+  if (!output) return fallback;
+
+  for (const key of keys) {
+    const value = output[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return fallback;
 }
 
 // イラスト（SVG）
@@ -115,9 +120,9 @@ function ResultContent() {
             SORACOM Fluxで診断中だよ、ちょっとまっててね～
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            GPSマルチユニットと写真から
+            GPSマルチユニットの温湿度と写真から
             <br />
-            やさしく診断してるよ〜！
+            もの置きの相性を診断してるよ〜！
           </p>
         </div>
       </div>
@@ -142,6 +147,22 @@ function ResultContent() {
     );
   }
 
+  const placement = readOutputText(
+    result.output,
+    ["placement", "shindan", "judge", "summary"],
+    "判定情報がありません"
+  );
+  const advice = readOutputText(
+    result.output,
+    ["advice", "recommend", "countermeasure"],
+    "アドバイス情報がありません"
+  );
+  const forecastNote = readOutputText(
+    result.output,
+    ["forecastNote", "weather", "forecast", "weatherAdvice"],
+    "予報連動コメントはありません"
+  );
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-100 to-white">
       <KoupenSVG />
@@ -150,11 +171,14 @@ function ResultContent() {
       </h1>
       <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
         <div className="mb-4 text-gray-800 text-center">
-          <span className="font-bold">服装解析：</span>
-          {result.output.shindan}
+          <span className="font-bold">総合判定：</span>
+          {placement}
           <br />
-          <span className="font-bold">おすすめ：</span>
-          {result.output.recommend}
+          <span className="font-bold">AIアドバイス：</span>
+          {advice}
+          <br />
+          <span className="font-bold">予報連動：</span>
+          {forecastNote}
         </div>
         <button
           onClick={() => router.push("/")}
@@ -166,11 +190,11 @@ function ResultContent() {
           onClick={() => router.push("/weathercamera")}
           className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg w-full transition"
         >
-          ウェザーニューズの天気予報情報から今度は診断してみる
+          天気予報も含めて診断する
         </button>
       </div>
       <div className="mt-8 text-xs text-gray-400 text-center">
-        どんな服でも、あなたはすてきだよ〜！
+        設置前にリスクを確認して、物を長持ちさせよう
       </div>
     </div>
   );

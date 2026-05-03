@@ -38,19 +38,19 @@ export default function Home() {
       </div>
       {/* やさしいメッセージ */}
       <h1 className="text-2xl font-bold text-blue-700 mb-2">
-        快適！服装診断へようこそ！
+        もの置き診断へようこそ！
       </h1>
       <p className="text-lg text-gray-700 mb-6 text-center max-w-md">
         <br />
-        今の環境にぴったりの服装を診断するよ！
+        今の環境に物を置いて大丈夫かを診断するよ！
         <br />
-        どんな結果でも、あなたはとってもすてきだよ！
+        温湿度・画像・天気予報を使って判定するよ！
       </p>
       <button
         onClick={() => router.push("/camera")}
         className="bg-blue-400 hover:bg-blue-500 transition text-white px-8 py-4 rounded-full text-xl shadow-lg"
       >
-        服装診断をはじめる
+        もの置き診断をはじめる
       </button>
     </div>
   );

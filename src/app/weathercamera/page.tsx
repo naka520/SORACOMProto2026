@@ -81,7 +81,32 @@ export default function Camera() {
     initCamera();
   };
 
-  // 画像をS3にアップロードしてSORACOM Fluxを起動
+  const getCurrentPosition = async (): Promise<{
+    latitude: number;
+    longitude: number;
+  } | null> => {
+    if (!navigator.geolocation) {
+      return null;
+    }
+
+    return new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        () => resolve(null),
+        {
+          enableHighAccuracy: true,
+          timeout: 8000,
+        }
+      );
+    });
+  };
+
+  // 画像をAzure BlobにアップロードしてSORACOM Fluxを起動
   const handleDiagnose = async () => {
     if (!imageData) return;
 
@@ -95,7 +120,7 @@ export default function Camera() {
       const formData = new FormData();
       formData.append("file", blob, "capture.jpg");
 
-      // 1. S3にアップロード
+      // 1. Azure Blob Storageにアップロード
       const uploadResponse = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -105,13 +130,22 @@ export default function Camera() {
         throw new Error("アップロードに失敗しました");
       }
 
+      const { imageUrl } = (await uploadResponse.json()) as {
+        imageUrl: string;
+      };
+
+      const location = await getCurrentPosition();
+
       // 2. SORACOM Fluxにトリガー送信
       const triggerResponse = await fetch("/api/weather-torriger-flux", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          imageUrl,
+          location,
+        }),
       });
 
       if (!triggerResponse.ok) {
@@ -157,9 +191,9 @@ export default function Camera() {
         </svg>
       </div>
 
-      <h1 className="text-2xl font-bold mb-2 text-blue-700">服装診断カメラ</h1>
+      <h1 className="text-2xl font-bold mb-2 text-blue-700">もの置き診断カメラ</h1>
       <p className="text-lg text-gray-700 mb-6 text-center max-w-md">
-        服をカメラで撮影してね〜！
+        置きたい物をカメラで撮影してね〜！
       </p>
 
       {cameraError && (
@@ -180,7 +214,7 @@ export default function Camera() {
           >
             <Image
               src={imageData}
-              alt="撮影した服"
+              alt="撮影した物"
               fill
               style={{ objectFit: "contain" }}
               sizes="(max-width: 768px) 100vw, 400px"
@@ -210,7 +244,7 @@ export default function Camera() {
             </button>
           </div>
           <div className="mt-4 text-sm text-gray-500">
-            どんな服でも「すてき！」なんだよ🌟
+            天気予報も加味して、置き場所の相性を診断するよ
           </div>
         </div>
       ) : (
