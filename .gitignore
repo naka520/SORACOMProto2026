@@ -17,6 +17,13 @@
 /.next/
 /out/
 
+# vite frontend
+/frontend/dist/
+
+# azure functions build outputs
+/functions/dist/
+/functions/local.settings.json
+
 # production
 /build
 

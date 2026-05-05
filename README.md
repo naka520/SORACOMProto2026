@@ -1,16 +1,19 @@
 # もの置き診断アプリ
 
 GPSマルチユニット(SORACOM Edition)の温湿度データ、画像、天気予報を使って、
-「この場所にこの物を置いて大丈夫か」を診断するNext.jsアプリです。
+「この場所にこの物を置いて大丈夫か」を診断するTypeScriptアプリです。
 
-Todo.mdの設計に合わせて、ストレージはAWS S3ではなくAzure Blob Storageを利用します。
+このリポジトリは以下の2アプリ構成です。
+
+- `frontend/`: Vite + React (Azure Static Web Apps配信用)
+- `functions/`: Azure Functions v4 TypeScript (zip deploy)
 
 ## 技術スタック
 
-- Frontend: Next.js (App Router, TypeScript)
+- Frontend: Vite + React + TypeScript
+- Backend: Azure Functions v4 (Node.js/TypeScript)
 - Storage: Azure Blob Storage
 - Logic/AI: SORACOM Flux
-- Backend Webhook: 本リポジトリのAPI Route (Azure Functionsへ置き換えやすい形)
 - External API: ウェザーニューズAPI (Flux側で利用)
 
 ## 画面構成
@@ -21,7 +24,9 @@ Todo.mdの設計に合わせて、ストレージはAWS S3ではなくAzure Blob
 - `/weathercamera` : 画像撮影 -> Blobアップロード -> 天気予報連携トリガー
 - `/weatherresult` : 天気予報込み診断結果表示
 
-## APIエンドポイント
+## APIエンドポイント (Function App)
+
+Function AppのベースURLを `https://<function-app-name>.azurewebsites.net` とした場合:
 
 - `POST /api/upload`
 	- 画像をAzure Blob Storageへ保存
@@ -41,7 +46,9 @@ Todo.mdの設計に合わせて、ストレージはAWS S3ではなくAzure Blob
 
 ## 必須環境変数
 
-### Azure Blob Storage
+### Functions側
+
+Azure Blob Storage:
 
 - `AZURE_STORAGE_CONTAINER_NAME`
 - 次のどちらかを設定
@@ -50,36 +57,39 @@ Todo.mdの設計に合わせて、ストレージはAWS S3ではなくAzure Blob
 - 任意: `AZURE_BLOB_READ_SAS_TOKEN`
 	- Blobコンテナが非公開の場合、Fluxが画像へアクセスするための読み取りSAS
 
-### SORACOM Flux
+SORACOM Flux:
 
 - `SORACOM_FLUX_WEBHOOK_URL`
 - `SORACOM_FLUX_WEATHER_WEBHOOK_URL`
 
+### Frontend側
+
+- `VITE_API_BASE_URL`
+	- 例: `https://<function-app-name>.azurewebsites.net`
+	- ローカル開発で未設定の場合はViteプロキシ経由で `http://localhost:7071/api` が使われます
+
 ## ローカル実行
 
-1. 依存関係をインストール
+### 1. Frontend
 
 ```bash
-npm install
-```
-
-2. `.env.local`を作成して環境変数を設定
-
-3. 開発サーバー起動
-
-```bash
+cd frontend
+npm ci
 npm run dev
 ```
 
-4. ブラウザで`http://localhost:3000`を開く
+ブラウザで `http://localhost:5173` を開きます。
 
-## Azure展開方針
+### 2. Functions
 
-- フロントはAzure Static Web Appsへ配置
-- API Routeは以下のどちらかで運用
-	- Azure Static Web AppsのFunctions連携
-	- Azure Functions(TypeScript)へ切り出し
-- BlobコンテナはFluxから読める権限設計(公開 or 短期SAS)にする
+```bash
+cd functions
+npm ci
+npm run build
+npm run start
+```
+
+Functions Hostは `http://localhost:7071` で起動します。
 
 ## IaC (Bicep)
 
@@ -93,8 +103,8 @@ npm run dev
 
 注意:
 
-- このBicepは「基盤リソース作成」を対象とします。
-- Function Appのアプリ本体コード(zip deploy等)とStatic Web Appsのフロント配信は別途デプロイが必要です。
+- このBicepは「基盤リソース作成」のみです。
+- Function Appのアプリ本体コード(zip deploy)とStatic Web Appsのフロント配信は別途必要です。
 
 ### 事前準備
 
@@ -147,43 +157,74 @@ az account set --subscription <your-subscription-id>
 ```bash
 az group create --name rg-monooki-dev --location japaneast
 az deployment group create \
-  --resource-group rg-monooki-dev \
-  --template-file infra/main.bicep \
-  --parameters infra/main.parameters.json
+	--resource-group rg-monooki-dev \
+	--template-file infra/main.bicep \
+	--parameters infra/main.parameters.json
 ```
 
-デプロイ結果(Outputs)確認:
+### Function Appアプリ本体コードのデプロイ手順 (zip deploy)
+
+1. Functions用コードをビルドしてzip化
 
 ```bash
-az deployment group show \
-	--resource-group rg-monooki-dev \
-	--name <deployment-name> \
-	--query properties.outputs
+cd functions
+npm ci
+npm run build
+zip -r ../functionapp.zip . -x "node_modules/.cache/*"
+cd -
 ```
 
-### デプロイ後の設定
-
-
-1. Function Appアプリ設定の以下を本番値へ更新
-	- `SORACOM_FLUX_WEBHOOK_URL`
-	- `SORACOM_FLUX_WEATHER_WEBHOOK_URL`
-	- 必要に応じて`AZURE_BLOB_READ_SAS_TOKEN`
-
-2. 必要であればFunction Appへコードをデプロイ
+2. zip deployを実行
 
 ```bash
 az functionapp deployment source config-zip \
 	--resource-group rg-monooki-dev \
 	--name <function-app-name> \
-	--src <path-to-zip>
+	--src functionapp.zip
 ```
 
-3. Static Web AppsにNext.jsデプロイを接続
+3. デプロイ確認
 
-- GitHub Actions連携またはSWA CLIでフロントを公開
+```bash
+az functionapp function list \
+	--resource-group rg-monooki-dev \
+	--name <function-app-name> \
+	--query "[].name"
+```
 
-4. 疎通確認
+### Static Web Appsのフロント配信手順
+
+#### A. GitHub Actions連携 (推奨)
+
+1. SWAリソースからDeployment Tokenを取得
+
+```bash
+az staticwebapp secrets list \
+	--name <swa-name> \
+	--resource-group rg-monooki-dev \
+	--query properties.apiKey -o tsv
+```
+
+2. GitHubリポジトリのSecretsに`AZURE_STATIC_WEB_APPS_API_TOKEN`として登録
+
+3. Actionsで`frontend/`をビルドして`dist/`を配信
+	- `app_location: "frontend"`
+	- `output_location: "dist"`
+
+#### B. SWA CLIで手動デプロイ
+
+```bash
+cd frontend
+npm ci
+npm run build
+npx @azure/static-web-apps-cli deploy \
+	dist \
+	--deployment-token <deployment-token> \
+	--env production
+```
+
+### 疎通確認
 
 - Blobコンテナに画像アップロードできること
-- SORACOM Flux Webhookから`/api/flux-webhook`へ到達できること
-- フロントから`/api/diagnosis-result`の取得ができること
+- SORACOM Flux WebhookからFunction AppのWebhookへ到達できること
+- フロントから診断結果APIを取得できること
