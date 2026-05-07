@@ -3,12 +3,12 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "location": {
-      "value": "japaneast"
+      "value": "eastus"
     },
     "projectName": {
       "value": "monooki"
     },
-    "environment": {
+    "environmentName": {
       "value": "dev"
     },
     "containerName": {
@@ -18,7 +18,10 @@
       "value": false
     },
     "createFunctionApp": {
-      "value": true
+      "value": false
+    },
+    "functionPlanSku": {
+      "value": "Y1"
     },
     "createStaticWebApp": {
       "value": true
@@ -27,7 +30,7 @@
       "value": "Free"
     },
     "staticWebAppLocation": {
-      "value": "East Asia"
+      "value": "East US 2"
     },
     "staticWebAppRepositoryUrl": {
       "value": ""

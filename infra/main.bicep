@@ -7,7 +7,7 @@ param location string = resourceGroup().location
 param projectName string = 'monooki'
 
 @description('Environment name (dev, stg, prod)')
-param environment string = 'dev'
+param environmentName string = 'dev'
 
 @description('Storage account SKU')
 @allowed([
@@ -25,6 +25,13 @@ param enableBlobPublicRead bool = false
 
 @description('Create Azure Functions resources')
 param createFunctionApp bool = true
+
+@description('Function App hosting plan SKU. Y1 is Consumption and requires Dynamic VMs quota. B1 uses a dedicated Basic plan.')
+@allowed([
+  'Y1'
+  'B1'
+])
+param functionPlanSku string = 'Y1'
 
 @description('Create Azure Static Web Apps resource')
 param createStaticWebApp bool = true
@@ -48,13 +55,17 @@ param staticWebAppBranch string = 'main'
 @description('Tags applied to all resources')
 param tags object = {}
 
-var suffix = toLower(uniqueString(resourceGroup().id, projectName, environment))
+var normalizedLocation = toLower(replace(location, ' ', ''))
+var locationSuffix = take(normalizedLocation, 6)
+var suffix = toLower(uniqueString(resourceGroup().id, projectName, environmentName, normalizedLocation))
 var storageAccountName = take('st${suffix}', 24)
-var functionPlanName = '${projectName}-${environment}-func-plan'
-var functionAppName = '${projectName}-${environment}-func'
-var appInsightsName = '${projectName}-${environment}-appi'
-var logAnalyticsName = '${projectName}-${environment}-log'
-var staticWebAppName = '${projectName}-${environment}-swa'
+var functionPlanName = take('${projectName}-${environmentName}-${locationSuffix}-func-plan', 40)
+var functionAppName = take('${projectName}-${environmentName}-${locationSuffix}-func', 60)
+var appInsightsName = take('${projectName}-${environmentName}-${locationSuffix}-appi', 260)
+var logAnalyticsName = take('${projectName}-${environmentName}-${locationSuffix}-log', 63)
+var staticWebAppName = take('${projectName}-${environmentName}-${locationSuffix}-swa', 40)
+var isConsumptionPlan = functionPlanSku == 'Y1'
+var functionPlanTier = isConsumptionPlan ? 'Dynamic' : 'Basic'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
@@ -73,17 +84,16 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
 }
 
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
-  name: '${storageAccount.name}/default'
+  name: 'default'
+  parent: storageAccount
 }
 
 resource imageContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
-  name: '${storageAccount.name}/default/${containerName}'
+  name: containerName
+  parent: blobService
   properties: {
     publicAccess: enableBlobPublicRead ? 'Blob' : 'None'
   }
-  dependsOn: [
-    blobService
-  ]
 }
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (createFunctionApp) {
@@ -113,10 +123,9 @@ resource functionPlan 'Microsoft.Web/serverfarms@2023-12-01' = if (createFunctio
   name: functionPlanName
   location: location
   tags: tags
-  kind: 'functionapp'
   sku: {
-    name: 'Y1'
-    tier: 'Dynamic'
+    name: functionPlanSku
+    tier: functionPlanTier
   }
   properties: {
     reserved: true
@@ -136,6 +145,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (createFunctionApp) {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'Node|20'
+      alwaysOn: !isConsumptionPlan
       ftpsState: 'FtpsOnly'
       appSettings: [
         {
@@ -160,7 +170,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (createFunctionApp) {
         }
         {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsights.properties.ConnectionString
+          value: appInsights.?properties.ConnectionString ?? ''
         }
         {
           name: 'AZURE_STORAGE_ACCOUNT_NAME'
@@ -207,4 +217,4 @@ output storageAccountName string = storageAccount.name
 output blobContainerName string = imageContainer.name
 output functionAppName string = createFunctionApp ? functionApp.name : ''
 output staticWebAppName string = createStaticWebApp ? staticWebApp.name : ''
-output staticWebAppDefaultHostname string = createStaticWebApp ? staticWebApp.properties.defaultHostname : ''
+output staticWebAppDefaultHostname string = staticWebApp.?properties.defaultHostname ?? ''

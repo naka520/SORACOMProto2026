@@ -1,0 +1,327 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.1.21952",
+      "templateHash": "15336530801178440206"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Deployment location"
+      }
+    },
+    "projectName": {
+      "type": "string",
+      "defaultValue": "monooki",
+      "metadata": {
+        "description": "Project short name used in resource naming"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "dev",
+      "metadata": {
+        "description": "Environment name (dev, stg, prod)"
+      }
+    },
+    "storageSku": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_ZRS"
+      ],
+      "metadata": {
+        "description": "Storage account SKU"
+      }
+    },
+    "containerName": {
+      "type": "string",
+      "defaultValue": "mono-oki-images",
+      "metadata": {
+        "description": "Blob container name for uploaded images"
+      }
+    },
+    "enableBlobPublicRead": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Allow anonymous read access to blobs. Keep false for production."
+      }
+    },
+    "createFunctionApp": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Create Azure Functions resources"
+      }
+    },
+    "functionPlanSku": {
+      "type": "string",
+      "defaultValue": "Y1",
+      "allowedValues": [
+        "Y1",
+        "B1"
+      ],
+      "metadata": {
+        "description": "Function App hosting plan SKU. Y1 is Consumption and requires Dynamic VMs quota. B1 uses a dedicated Basic plan."
+      }
+    },
+    "createStaticWebApp": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Create Azure Static Web Apps resource"
+      }
+    },
+    "staticWebAppSku": {
+      "type": "string",
+      "defaultValue": "Free",
+      "allowedValues": [
+        "Free",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "Static Web Apps SKU"
+      }
+    },
+    "staticWebAppLocation": {
+      "type": "string",
+      "defaultValue": "East Asia",
+      "metadata": {
+        "description": "Static Web Apps control plane location"
+      }
+    },
+    "staticWebAppRepositoryUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional repository URL for Static Web Apps build integration"
+      }
+    },
+    "staticWebAppBranch": {
+      "type": "string",
+      "defaultValue": "main",
+      "metadata": {
+        "description": "Branch used by Static Web Apps build integration"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags applied to all resources"
+      }
+    }
+  },
+  "variables": {
+    "normalizedLocation": "[toLower(replace(parameters('location'), ' ', ''))]",
+    "locationSuffix": "[take(variables('normalizedLocation'), 6)]",
+    "suffix": "[toLower(uniqueString(resourceGroup().id, parameters('projectName'), parameters('environmentName'), variables('normalizedLocation')))]",
+    "storageAccountName": "[take(format('st{0}', variables('suffix')), 24)]",
+    "functionPlanName": "[take(format('{0}-{1}-{2}-func-plan', parameters('projectName'), parameters('environmentName'), variables('locationSuffix')), 40)]",
+    "functionAppName": "[take(format('{0}-{1}-{2}-func', parameters('projectName'), parameters('environmentName'), variables('locationSuffix')), 60)]",
+    "appInsightsName": "[take(format('{0}-{1}-{2}-appi', parameters('projectName'), parameters('environmentName'), variables('locationSuffix')), 260)]",
+    "logAnalyticsName": "[take(format('{0}-{1}-{2}-log', parameters('projectName'), parameters('environmentName'), variables('locationSuffix')), 63)]",
+    "staticWebAppName": "[take(format('{0}-{1}-{2}-swa', parameters('projectName'), parameters('environmentName'), variables('locationSuffix')), 40)]",
+    "isConsumptionPlan": "[equals(parameters('functionPlanSku'), 'Y1')]",
+    "functionPlanTier": "[if(variables('isConsumptionPlan'), 'Dynamic', 'Basic')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('storageSku')]"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": "[parameters('enableBlobPublicRead')]",
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', variables('storageAccountName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageAccountName'), 'default', parameters('containerName'))]",
+      "properties": {
+        "publicAccess": "[if(parameters('enableBlobPublicRead'), 'Blob', 'None')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "condition": "[parameters('createFunctionApp')]",
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('logAnalyticsName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "condition": "[parameters('createFunctionApp')]",
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[variables('appInsightsName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('createFunctionApp')]",
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('functionPlanName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('functionPlanSku')]",
+        "tier": "[variables('functionPlanTier')]"
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "condition": "[parameters('createFunctionApp')]",
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('functionAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "functionapp,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('functionPlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "linuxFxVersion": "Node|20",
+          "alwaysOn": "[not(variables('isConsumptionPlan'))]",
+          "ftpsState": "FtpsOnly",
+          "appSettings": [
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~4"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "node"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "~20"
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "1"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').keys[0].value, environment().suffixes.storage)]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[coalesce(tryGet(if(parameters('createFunctionApp'), reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02', 'full'), null()), 'properties', 'ConnectionString'), '')]"
+            },
+            {
+              "name": "AZURE_STORAGE_ACCOUNT_NAME",
+              "value": "[variables('storageAccountName')]"
+            },
+            {
+              "name": "AZURE_STORAGE_CONTAINER_NAME",
+              "value": "[parameters('containerName')]"
+            },
+            {
+              "name": "AZURE_BLOB_READ_SAS_TOKEN",
+              "value": ""
+            },
+            {
+              "name": "SORACOM_FLUX_WEBHOOK_URL",
+              "value": ""
+            },
+            {
+              "name": "SORACOM_FLUX_WEATHER_WEBHOOK_URL",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('functionPlanName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('createStaticWebApp')]",
+      "type": "Microsoft.Web/staticSites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('staticWebAppName')]",
+      "location": "[parameters('staticWebAppLocation')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('staticWebAppSku')]",
+        "tier": "[parameters('staticWebAppSku')]"
+      },
+      "properties": "[if(empty(parameters('staticWebAppRepositoryUrl')), createObject(), createObject('repositoryUrl', parameters('staticWebAppRepositoryUrl'), 'branch', parameters('staticWebAppBranch')))]"
+    }
+  ],
+  "outputs": {
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('storageAccountName')]"
+    },
+    "blobContainerName": {
+      "type": "string",
+      "value": "[parameters('containerName')]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "value": "[if(parameters('createFunctionApp'), variables('functionAppName'), '')]"
+    },
+    "staticWebAppName": {
+      "type": "string",
+      "value": "[if(parameters('createStaticWebApp'), variables('staticWebAppName'), '')]"
+    },
+    "staticWebAppDefaultHostname": {
+      "type": "string",
+      "value": "[coalesce(tryGet(if(parameters('createStaticWebApp'), reference(resourceId('Microsoft.Web/staticSites', variables('staticWebAppName')), '2023-12-01', 'full'), null()), 'properties', 'defaultHostname'), '')]"
+    }
+  }
+}
