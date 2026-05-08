@@ -4,13 +4,32 @@ import { KoupenSVG } from "../components/KoupenSVG";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
-async function getCurrentPosition(): Promise<{ latitude: number; longitude: number } | null> {
+async function readErrorMessage(
+  response: Response,
+  fallbackMessage: string,
+): Promise<string> {
+  try {
+    const data = (await response.json()) as { message?: string };
+    return data.message ?? fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+}
+
+async function getCurrentPosition(): Promise<{
+  latitude: number;
+  longitude: number;
+} | null> {
   if (!navigator.geolocation) return null;
   return new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      pos =>
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        }),
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 8000 },
     );
   });
 }
@@ -21,7 +40,11 @@ interface CameraPageProps {
   resultPath: string;
 }
 
-export function CameraPage({ title, triggerEndpoint, resultPath }: CameraPageProps) {
+export function CameraPage({
+  title,
+  triggerEndpoint,
+  resultPath,
+}: CameraPageProps) {
   const [imageData, setImageData] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,7 +65,9 @@ export function CameraPage({ title, triggerEndpoint, resultPath }: CameraPagePro
       setCameraActive(true);
       setCameraError(null);
     } catch {
-      setCameraError("カメラにアクセスできませんでした。カメラの使用許可を確認してね〜！");
+      setCameraError(
+        "カメラにアクセスできませんでした。カメラの使用許可を確認してね〜！",
+      );
     }
   };
 
@@ -65,7 +90,9 @@ export function CameraPage({ title, triggerEndpoint, resultPath }: CameraPagePro
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas
+      .getContext("2d")
+      ?.drawImage(video, 0, 0, canvas.width, canvas.height);
     setImageData(canvas.toDataURL("image/jpeg"));
     stopCamera();
   };
@@ -83,9 +110,16 @@ export function CameraPage({ title, triggerEndpoint, resultPath }: CameraPagePro
       const formData = new FormData();
       formData.append("file", blob, "capture.jpg");
 
-      const uploadRes = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData });
-      if (!uploadRes.ok) throw new Error("アップロードに失敗しました");
-      const { imageUrl } = await uploadRes.json() as { imageUrl: string };
+      const uploadRes = await fetch(`${API_BASE}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(
+          await readErrorMessage(uploadRes, "アップロードに失敗しました"),
+        );
+      }
+      const { imageUrl } = (await uploadRes.json()) as { imageUrl: string };
 
       const location = await getCurrentPosition();
 
@@ -94,12 +128,16 @@ export function CameraPage({ title, triggerEndpoint, resultPath }: CameraPagePro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageUrl, location }),
       });
-      if (!triggerRes.ok) throw new Error("診断の開始に失敗しました");
+      if (!triggerRes.ok) {
+        throw new Error(
+          await readErrorMessage(triggerRes, "診断の開始に失敗しました"),
+        );
+      }
 
       navigate(resultPath);
     } catch (error) {
       console.error("診断エラー:", error);
-      alert("診断に失敗しました");
+      alert(error instanceof Error ? error.message : "診断に失敗しました");
     } finally {
       setLoading(false);
     }
@@ -149,7 +187,11 @@ export function CameraPage({ title, triggerEndpoint, resultPath }: CameraPagePro
         </div>
       ) : (
         <div className="w-full max-w-md">
-          <img src={imageData} alt="撮影した画像" className="w-full rounded-lg shadow-lg mb-4" />
+          <img
+            src={imageData}
+            alt="撮影した画像"
+            className="w-full rounded-lg shadow-lg mb-4"
+          />
           <canvas ref={canvasRef} className="hidden" />
           <div className="flex gap-4">
             <button

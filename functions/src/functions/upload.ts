@@ -1,5 +1,13 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { BlobServiceClient, StorageSharedKeyCredential } from "@azure/storage-blob";
+import {
+  app,
+  HttpRequest,
+  HttpResponseInit,
+  InvocationContext,
+} from "@azure/functions";
+import {
+  BlobServiceClient,
+  StorageSharedKeyCredential,
+} from "@azure/storage-blob";
 
 function createBlobServiceClient(): BlobServiceClient {
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
@@ -11,24 +19,30 @@ function createBlobServiceClient(): BlobServiceClient {
   const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
   if (!accountName || !accountKey) {
     throw new Error(
-      "Azure Storageの認証情報が不足しています。AZURE_STORAGE_CONNECTION_STRING または AZURE_STORAGE_ACCOUNT_NAME / AZURE_STORAGE_ACCOUNT_KEY を設定してください。"
+      "Azure Storageの認証情報が不足しています。AZURE_STORAGE_CONNECTION_STRING または AZURE_STORAGE_ACCOUNT_NAME / AZURE_STORAGE_ACCOUNT_KEY を設定してください。",
     );
   }
 
   const credential = new StorageSharedKeyCredential(accountName, accountKey);
   return new BlobServiceClient(
     `https://${accountName}.blob.core.windows.net`,
-    credential
+    credential,
   );
 }
 
-async function upload(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+async function upload(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
   context.log("Upload API request received");
 
   const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME;
   if (!containerName) {
     context.error("AZURE_STORAGE_CONTAINER_NAME is missing");
-    return { status: 500, jsonBody: { message: "サーバー設定エラー: 環境変数が不足しています" } };
+    return {
+      status: 500,
+      jsonBody: { message: "サーバー設定エラー: 環境変数が不足しています" },
+    };
   }
 
   try {
@@ -36,11 +50,17 @@ async function upload(request: HttpRequest, context: InvocationContext): Promise
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return { status: 400, jsonBody: { message: "ファイルがアップロードされていません" } };
+      return {
+        status: 400,
+        jsonBody: { message: "ファイルがアップロードされていません" },
+      };
     }
 
     if (file.size > 4 * 1024 * 1024) {
-      return { status: 400, jsonBody: { message: "ファイルサイズが大きすぎます（最大4MB）" } };
+      return {
+        status: 400,
+        jsonBody: { message: "ファイルサイズが大きすぎます（最大4MB）" },
+      };
     }
 
     const fileBuffer = await file.arrayBuffer();
@@ -65,7 +85,9 @@ async function upload(request: HttpRequest, context: InvocationContext): Promise
     return { jsonBody: { imageUrl } };
   } catch (error) {
     context.error("アップロードエラー:", error);
-    return { status: 500, jsonBody: { message: "アップロードに失敗しました" } };
+    const message =
+      error instanceof Error ? error.message : "アップロードに失敗しました";
+    return { status: 500, jsonBody: { message } };
   }
 }
 
