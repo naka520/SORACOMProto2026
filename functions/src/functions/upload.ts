@@ -68,7 +68,7 @@ async function upload(
     const containerClient = blobServiceClient.getContainerClient(containerName);
     await containerClient.createIfNotExists();
 
-    const fileName = `captures/${Date.now()}-image.jpg`;
+    const fileName = "captures/image.jpg";
     const blockBlobClient = containerClient.getBlockBlobClient(fileName);
 
     await blockBlobClient.uploadData(Buffer.from(fileBuffer), {

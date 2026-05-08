@@ -1,20 +1,47 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { saveDiagnosisResult, DiagnosisResult } from "../store";
+import {
+  app,
+  HttpRequest,
+  HttpResponseInit,
+  InvocationContext,
+} from "@azure/functions";
+import { extractRequestId } from "../requestId";
+import {
+  saveDiagnosisResultToBlob,
+  StoredDiagnosisResult,
+} from "../resultStorage";
 
-async function fluxWebhook(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+async function fluxWebhook(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
   try {
-    context.log("Webhookリクエストヘッダー:", JSON.stringify(Object.fromEntries(request.headers), null, 2));
+    context.log(
+      "Webhookリクエストヘッダー:",
+      JSON.stringify(Object.fromEntries(request.headers), null, 2),
+    );
 
-    const payload = await request.json() as DiagnosisResult;
+    const payload = (await request.json()) as StoredDiagnosisResult;
     context.log("SORACOM Fluxからのwebhookを受信:", payload);
 
-    saveDiagnosisResult(payload);
-    context.log("診断データを保存しました");
+    const requestId = extractRequestId(payload);
+    if (!requestId) {
+      context.error("requestId が webhook payload に含まれていません");
+      return {
+        status: 400,
+        jsonBody: { message: "requestId が見つかりません" },
+      };
+    }
+
+    await saveDiagnosisResultToBlob("normal", requestId, payload);
+    context.log("診断データをBlob Storageへ保存しました", requestId);
 
     return { jsonBody: { success: true } };
   } catch (error) {
     context.error("Webhookエラー:", error);
-    return { status: 500, jsonBody: { message: "Webhookの処理に失敗しました" } };
+    return {
+      status: 500,
+      jsonBody: { message: "Webhookの処理に失敗しました" },
+    };
   }
 }
 

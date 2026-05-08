@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { KoupenSVG } from "./KoupenSVG";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -12,7 +12,7 @@ interface DiagnosisResult {
 function readOutputText(
   output: Record<string, unknown> | undefined,
   keys: string[],
-  fallback: string
+  fallback: string,
 ): string {
   if (!output) return fallback;
   for (const key of keys) {
@@ -36,22 +36,32 @@ export function ResultPage({
   footerNote = "設置前にリスクを確認して、物を長持ちさせよう",
 }: ResultPageProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestId = searchParams.get("requestId")?.trim() ?? "";
 
   useEffect(() => {
+    if (!requestId) {
+      setError("requestId が見つかりません。もう一度撮影してください。");
+      setLoading(false);
+      return;
+    }
+
     let retries = 0;
     let cancelled = false;
 
     const fetchResult = async (): Promise<boolean> => {
       try {
-        const res = await fetch(`${API_BASE}/api/${diagnosisEndpoint}`);
+        const res = await fetch(
+          `${API_BASE}/api/${diagnosisEndpoint}?requestId=${encodeURIComponent(requestId)}`,
+        );
         if (!res.ok) {
           if (res.status === 404) return false;
           throw new Error(`エラー: ${res.status}`);
         }
-        const data = await res.json() as DiagnosisResult;
+        const data = (await res.json()) as DiagnosisResult;
         if (data && Object.keys(data).length > 0) {
           setResult(data);
           setLoading(false);
@@ -81,8 +91,10 @@ export function ResultPage({
     };
 
     poll();
-    return () => { cancelled = true; };
-  }, [diagnosisEndpoint, maxRetries]);
+    return () => {
+      cancelled = true;
+    };
+  }, [diagnosisEndpoint, maxRetries, requestId]);
 
   if (loading) {
     return (
@@ -91,8 +103,12 @@ export function ResultPage({
         <h1 className="text-2xl font-bold mb-4 text-blue-700">診断中だよ〜</h1>
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4" />
-          <p className="text-gray-600">SORACOM Fluxで診断中だよ、ちょっとまっててね～</p>
-          <p className="text-sm text-gray-500 mt-2 text-center">{loadingNote}</p>
+          <p className="text-gray-600">
+            SORACOM Fluxで診断中だよ、ちょっとまっててね～
+          </p>
+          <p className="text-sm text-gray-500 mt-2 text-center">
+            {loadingNote}
+          </p>
         </div>
       </div>
     );
@@ -116,19 +132,42 @@ export function ResultPage({
     );
   }
 
-  const placement = readOutputText(result.output, ["placement", "shindan", "judge", "summary"], "判定情報がありません");
-  const advice = readOutputText(result.output, ["advice", "recommend", "countermeasure"], "アドバイス情報がありません");
-  const forecastNote = readOutputText(result.output, ["forecastNote", "weather", "forecast", "weatherAdvice"], "予報連動コメントはありません");
+  const placement = readOutputText(
+    result.output,
+    ["placement", "shindan", "judge", "summary"],
+    "判定情報がありません",
+  );
+  const advice = readOutputText(
+    result.output,
+    ["advice", "recommend", "countermeasure"],
+    "アドバイス情報がありません",
+  );
+  const forecastNote = readOutputText(
+    result.output,
+    ["forecastNote", "weather", "forecast", "weatherAdvice"],
+    "予報連動コメントはありません",
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-100 to-white">
       <KoupenSVG />
-      <h1 className="text-2xl font-bold mb-4 text-blue-700">診断結果だよ〜！</h1>
+      <h1 className="text-2xl font-bold mb-4 text-blue-700">
+        診断結果だよ〜！
+      </h1>
       <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
         <div className="mb-4 text-gray-800 text-center space-y-2">
-          <p><span className="font-bold">総合判定：</span>{placement}</p>
-          <p><span className="font-bold">AIアドバイス：</span>{advice}</p>
-          <p><span className="font-bold">予報連動：</span>{forecastNote}</p>
+          <p>
+            <span className="font-bold">総合判定：</span>
+            {placement}
+          </p>
+          <p>
+            <span className="font-bold">AIアドバイス：</span>
+            {advice}
+          </p>
+          <p>
+            <span className="font-bold">予報連動：</span>
+            {forecastNote}
+          </p>
         </div>
         <button
           onClick={() => navigate("/")}

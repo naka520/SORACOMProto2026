@@ -40,6 +40,10 @@ interface CameraPageProps {
   resultPath: string;
 }
 
+function createRequestId(): string {
+  return crypto.randomUUID();
+}
+
 export function CameraPage({
   title,
   triggerEndpoint,
@@ -122,11 +126,12 @@ export function CameraPage({
       const { imageUrl } = (await uploadRes.json()) as { imageUrl: string };
 
       const location = await getCurrentPosition();
+      const requestId = createRequestId();
 
       const triggerRes = await fetch(`${API_BASE}/api/${triggerEndpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl, location }),
+        body: JSON.stringify({ imageUrl, location, requestId }),
       });
       if (!triggerRes.ok) {
         throw new Error(
@@ -134,7 +139,7 @@ export function CameraPage({
         );
       }
 
-      navigate(resultPath);
+      navigate(`${resultPath}?requestId=${encodeURIComponent(requestId)}`);
     } catch (error) {
       console.error("診断エラー:", error);
       alert(error instanceof Error ? error.message : "診断に失敗しました");
