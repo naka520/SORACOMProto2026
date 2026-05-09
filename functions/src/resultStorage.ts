@@ -44,9 +44,13 @@ function getResultBlobPath(kind: DiagnosisKind, requestId: string): string {
   return `results/${kind}/${requestId}.json`;
 }
 
+function getLatestResultBlobPath(kind: DiagnosisKind): string {
+  return `results/${kind}/latest.json`;
+}
+
 export async function saveDiagnosisResultToBlob(
   kind: DiagnosisKind,
-  requestId: string,
+  requestId: string | null,
   payload: StoredDiagnosisResult,
 ): Promise<void> {
   const blobServiceClient = createBlobServiceClient();
@@ -54,10 +58,26 @@ export async function saveDiagnosisResultToBlob(
     blobServiceClient.getContainerClient(getContainerName());
   await containerClient.createIfNotExists();
 
+  const storedPayload = requestId ? { ...payload, requestId } : payload;
+
+  const latestBlobClient = containerClient.getBlockBlobClient(
+    getLatestResultBlobPath(kind),
+  );
+  const latestBody = JSON.stringify(storedPayload, null, 2);
+  await latestBlobClient.upload(latestBody, Buffer.byteLength(latestBody), {
+    blobHTTPHeaders: {
+      blobContentType: "application/json; charset=utf-8",
+    },
+  });
+
+  if (!requestId) {
+    return;
+  }
+
   const blobClient = containerClient.getBlockBlobClient(
     getResultBlobPath(kind, requestId),
   );
-  const body = JSON.stringify({ ...payload, requestId }, null, 2);
+  const body = JSON.stringify(storedPayload, null, 2);
   await blobClient.upload(body, Buffer.byteLength(body), {
     blobHTTPHeaders: {
       blobContentType: "application/json; charset=utf-8",
@@ -74,6 +94,24 @@ export async function getDiagnosisResultFromBlob(
     blobServiceClient.getContainerClient(getContainerName());
   const blobClient = containerClient.getBlockBlobClient(
     getResultBlobPath(kind, requestId),
+  );
+
+  if (!(await blobClient.exists())) {
+    return null;
+  }
+
+  const buffer = await blobClient.downloadToBuffer();
+  return JSON.parse(buffer.toString("utf-8")) as StoredDiagnosisResult;
+}
+
+export async function getLatestDiagnosisResultFromBlob(
+  kind: DiagnosisKind,
+): Promise<StoredDiagnosisResult | null> {
+  const blobServiceClient = createBlobServiceClient();
+  const containerClient =
+    blobServiceClient.getContainerClient(getContainerName());
+  const blobClient = containerClient.getBlockBlobClient(
+    getLatestResultBlobPath(kind),
   );
 
   if (!(await blobClient.exists())) {

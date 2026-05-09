@@ -16,6 +16,10 @@ async function readErrorMessage(
   }
 }
 
+function describeError(error: unknown, fallbackMessage: string): string {
+  return error instanceof Error ? error.message : fallbackMessage;
+}
+
 async function getCurrentPosition(): Promise<{
   latitude: number;
   longitude: number;
@@ -110,13 +114,25 @@ export function CameraPage({
     if (!imageData) return;
     setLoading(true);
     try {
-      const blob = await (await fetch(imageData)).blob();
+      const imageResponse = await fetch(imageData).catch(error => {
+        throw new Error(
+          `撮影画像の変換に失敗しました: ${describeError(error, "画像データを読み取れません")}`,
+        );
+      });
+      const blob = await imageResponse.blob();
       const formData = new FormData();
       formData.append("file", blob, "capture.jpg");
 
-      const uploadRes = await fetch(`${API_BASE}/api/upload`, {
+      const uploadUrl = `${API_BASE}/api/upload`;
+      const triggerUrl = `${API_BASE}/api/${triggerEndpoint}`;
+
+      const uploadRes = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
+      }).catch(error => {
+        throw new Error(
+          `画像アップロード通信に失敗しました: ${describeError(error, uploadUrl)}`,
+        );
       });
       if (!uploadRes.ok) {
         throw new Error(
@@ -128,10 +144,14 @@ export function CameraPage({
       const location = await getCurrentPosition();
       const requestId = createRequestId();
 
-      const triggerRes = await fetch(`${API_BASE}/api/${triggerEndpoint}`, {
+      const triggerRes = await fetch(triggerUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageUrl, location, requestId }),
+      }).catch(error => {
+        throw new Error(
+          `診断API通信に失敗しました: ${describeError(error, triggerUrl)}`,
+        );
       });
       if (!triggerRes.ok) {
         throw new Error(

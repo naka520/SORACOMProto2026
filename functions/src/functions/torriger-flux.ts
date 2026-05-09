@@ -44,7 +44,9 @@ async function torrigerFlux(
     return { jsonBody: { success: true } };
   } catch (error) {
     context.error("トリガーエラー:", error);
-    return { status: 500, jsonBody: { message: "診断の開始に失敗しました" } };
+    const message =
+      error instanceof Error ? error.message : "診断の開始に失敗しました";
+    return { status: 500, jsonBody: { message } };
   }
 }
 

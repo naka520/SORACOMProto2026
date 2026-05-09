@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.1.21952",
-      "templateHash": "14590146015190760080"
+      "templateHash": "8212483235220170439"
     }
   },
   "parameters": {
@@ -79,6 +79,13 @@
       "defaultValue": true,
       "metadata": {
         "description": "Create Azure Static Web Apps resource"
+      }
+    },
+    "functionAppAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Allowed CORS origins for the Function App"
       }
     },
     "staticWebAppSku": {
@@ -234,6 +241,10 @@
           "linuxFxVersion": "Node|22",
           "alwaysOn": "[not(variables('isConsumptionPlan'))]",
           "ftpsState": "FtpsOnly",
+          "cors": {
+            "allowedOrigins": "[parameters('functionAppAllowedOrigins')]",
+            "supportCredentials": false
+          },
           "appSettings": [
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -254,6 +265,10 @@
             {
               "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
               "value": "[coalesce(tryGet(if(parameters('createFunctionApp'), reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02', 'full'), null()), 'properties', 'ConnectionString'), '')]"
+            },
+            {
+              "name": "AZURE_STORAGE_CONNECTION_STRING",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').keys[0].value, environment().suffixes.storage)]"
             },
             {
               "name": "AZURE_STORAGE_ACCOUNT_NAME",

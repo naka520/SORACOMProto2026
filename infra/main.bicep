@@ -36,6 +36,9 @@ param functionPlanSku string = 'Y1'
 @description('Create Azure Static Web Apps resource')
 param createStaticWebApp bool = true
 
+@description('Allowed CORS origins for the Function App')
+param functionAppAllowedOrigins array = []
+
 @description('Static Web Apps SKU')
 @allowed([
   'Free'
@@ -147,6 +150,10 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (createFunctionApp) {
       linuxFxVersion: 'Node|22'
       alwaysOn: !isConsumptionPlan
       ftpsState: 'FtpsOnly'
+      cors: {
+        allowedOrigins: functionAppAllowedOrigins
+        supportCredentials: false
+      }
       appSettings: [
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
@@ -167,6 +174,10 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (createFunctionApp) {
         {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsights.?properties.ConnectionString ?? ''
+        }
+        {
+          name: 'AZURE_STORAGE_CONNECTION_STRING'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
         }
         {
           name: 'AZURE_STORAGE_ACCOUNT_NAME'

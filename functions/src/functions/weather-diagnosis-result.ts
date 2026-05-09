@@ -4,21 +4,30 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from "@azure/functions";
-import { getDiagnosisResultFromBlob } from "../resultStorage";
+import {
+  getDiagnosisResultFromBlob,
+  getLatestDiagnosisResultFromBlob,
+} from "../resultStorage";
 
 async function weatherDiagnosisResult(
   request: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
   const requestId = request.query.get("requestId")?.trim();
-  if (!requestId) {
-    return { status: 400, jsonBody: { message: "requestId が必要です" } };
+
+  let result = requestId
+    ? await getDiagnosisResultFromBlob("weather", requestId)
+    : null;
+
+  if (!result) {
+    result = await getLatestDiagnosisResultFromBlob("weather");
   }
 
-  const result = await getDiagnosisResultFromBlob("weather", requestId);
   context.log(
     "天気診断結果取得:",
-    result ? `あり (${requestId})` : `なし (${requestId})`,
+    result
+      ? `あり (${requestId ?? "latest"})`
+      : `なし (${requestId ?? "latest"})`,
   );
 
   if (!result) {

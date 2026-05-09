@@ -4,21 +4,30 @@ import {
   HttpResponseInit,
   InvocationContext,
 } from "@azure/functions";
-import { getDiagnosisResultFromBlob } from "../resultStorage";
+import {
+  getDiagnosisResultFromBlob,
+  getLatestDiagnosisResultFromBlob,
+} from "../resultStorage";
 
 async function diagnosisResult(
   request: HttpRequest,
   context: InvocationContext,
 ): Promise<HttpResponseInit> {
   const requestId = request.query.get("requestId")?.trim();
-  if (!requestId) {
-    return { status: 400, jsonBody: { message: "requestId が必要です" } };
+
+  let result = requestId
+    ? await getDiagnosisResultFromBlob("normal", requestId)
+    : null;
+
+  if (!result) {
+    result = await getLatestDiagnosisResultFromBlob("normal");
   }
 
-  const result = await getDiagnosisResultFromBlob("normal", requestId);
   context.log(
     "診断結果取得:",
-    result ? `あり (${requestId})` : `なし (${requestId})`,
+    result
+      ? `あり (${requestId ?? "latest"})`
+      : `なし (${requestId ?? "latest"})`,
   );
 
   if (!result) {

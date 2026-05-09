@@ -24,16 +24,11 @@ async function weatherFluxWebhook(
     context.log("SORACOM Fluxからのwebhookを受信:", payload);
 
     const requestId = extractRequestId(payload);
-    if (!requestId) {
-      context.error("requestId が webhook payload に含まれていません");
-      return {
-        status: 400,
-        jsonBody: { message: "requestId が見つかりません" },
-      };
-    }
-
     await saveDiagnosisResultToBlob("weather", requestId, payload);
-    context.log("天気診断データをBlob Storageへ保存しました", requestId);
+    context.log(
+      "天気診断データをBlob Storageへ保存しました",
+      requestId ?? "latest-only",
+    );
 
     return { jsonBody: { success: true } };
   } catch (error) {

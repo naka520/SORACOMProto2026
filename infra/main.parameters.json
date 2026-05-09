@@ -20,6 +20,9 @@
     "createFunctionApp": {
       "value": true
     },
+    "functionAppAllowedOrigins": {
+      "value": ["https://wonderful-bay-0d6afac0f.7.azurestaticapps.net"]
+    },
     "functionPlanSku": {
       "value": "Y1"
     },
