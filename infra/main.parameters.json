@@ -18,7 +18,7 @@
       "value": false
     },
     "createFunctionApp": {
-      "value": false
+      "value": true
     },
     "functionPlanSku": {
       "value": "Y1"

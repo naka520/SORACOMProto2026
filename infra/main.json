@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.1.21952",
-      "templateHash": "15336530801178440206"
+      "templateHash": "14590146015190760080"
     }
   },
   "parameters": {
@@ -231,7 +231,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('functionPlanName'))]",
         "httpsOnly": true,
         "siteConfig": {
-          "linuxFxVersion": "Node|20",
+          "linuxFxVersion": "Node|22",
           "alwaysOn": "[not(variables('isConsumptionPlan'))]",
           "ftpsState": "FtpsOnly",
           "appSettings": [
@@ -245,11 +245,7 @@
             },
             {
               "name": "WEBSITE_NODE_DEFAULT_VERSION",
-              "value": "~20"
-            },
-            {
-              "name": "WEBSITE_RUN_FROM_PACKAGE",
-              "value": "1"
+              "value": "~22"
             },
             {
               "name": "AzureWebJobsStorage",

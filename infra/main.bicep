@@ -144,7 +144,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (createFunctionApp) {
     serverFarmId: functionPlan.id
     httpsOnly: true
     siteConfig: {
-      linuxFxVersion: 'Node|20'
+      linuxFxVersion: 'Node|22'
       alwaysOn: !isConsumptionPlan
       ftpsState: 'FtpsOnly'
       appSettings: [
@@ -158,11 +158,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (createFunctionApp) {
         }
         {
           name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: '~20'
-        }
-        {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
+          value: '~22'
         }
         {
           name: 'AzureWebJobsStorage'
