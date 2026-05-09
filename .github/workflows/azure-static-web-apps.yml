@@ -46,7 +46,7 @@ jobs:
           action: upload
           app_location: frontend
           output_location: dist
-          app_build_command: npm run build
+          app_build_command: VITE_API_BASE_URL="$VITE_API_BASE_URL" npm run build
 
   close_pull_request:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
