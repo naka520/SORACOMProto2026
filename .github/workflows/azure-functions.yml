@@ -1,0 +1,40 @@
+name: Azure Functions CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "functions/**"
+      - ".github/workflows/azure-functions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install and build Functions
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.AZURE_FUNCTIONAPP_NAME }}
+          package: functions
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}

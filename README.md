@@ -6,12 +6,12 @@ GPSマルチユニット(SORACOM Edition)の温湿度データ、画像、天気
 このリポジトリは以下の2ディレクトリ構成です。
 
 - `frontend/`: Vite + React (Azure Static Web Apps配信用)
-- `functions/`: Azure Static Web Apps の API としてデプロイする Azure Functions v4 TypeScript
+- `functions/`: 独立した Azure Functions v4 TypeScript
 
 ## 技術スタック
 
 - Frontend: Vite + React + TypeScript
-- Backend: Azure Static Web Apps managed API (Azure Functions v4, Node.js/TypeScript)
+- Backend: Azure Functions v4 (Node.js/TypeScript)
 - Storage: Azure Blob Storage
 - Logic/AI: SORACOM Flux
 - External API: ウェザーニューズAPI (Flux側で利用)
@@ -26,7 +26,7 @@ GPSマルチユニット(SORACOM Edition)の温湿度データ、画像、天気
 
 ## APIエンドポイント
 
-Azure Static Web Apps 配下ではフロントと同一オリジンの `/api/*` として公開します。
+Function App のベース URL を `https://<function-app-name>.azurewebsites.net` とした場合:
 
 - `POST /api/upload`
   - 画像をAzure Blob Storageへ保存
@@ -65,7 +65,8 @@ SORACOM Flux:
 ### Frontend側
 
 - `VITE_API_BASE_URL`
-  - 本番のSWA運用では未設定で構いません
+  - 例: `https://<function-app-name>.azurewebsites.net`
+  - GitHub Actions では `VITE_API_BASE_URL` を Secret として渡してビルドします
   - ローカル開発で未設定の場合はViteプロキシ経由で `http://localhost:7071/api` が使われます
 
 ## ローカル実行
@@ -94,7 +95,7 @@ Functions Hostは `http://localhost:7071` で起動します。
 ## Azure展開方針
 
 - フロントはAzure Static Web Appsへ配置
-- API は Azure Static Web Apps の managed API として `functions/` を一緒に配信
+- API は Azure Functions へ個別デプロイ
 - BlobコンテナはFluxから読める権限設計(公開 or 短期SAS)にする
 
 ## IaC (Bicep)
@@ -103,13 +104,14 @@ Functions Hostは `http://localhost:7071` で起動します。
 
 - Azure Storage Account
 - Blobコンテナ(画像保存)
+- Azure Functions(Linux, Consumption または Basic)
+- Log Analytics + Application Insights
 - Azure Static Web Apps
 
 注意:
 
 - このBicepは「基盤リソース作成」のみです。
-- API は Static Web Apps デプロイ時に `functions/` から一緒に配信します。
-- Storage Account と Static Web Apps 本体は別途デプロイが必要です。
+- Function App のコード配信と Static Web Apps のフロント配信は別途必要です。
 
 ### 事前準備
 
@@ -142,8 +144,14 @@ az account set --subscription <your-subscription-id>
 - `environmentName`
 - `location`
 - `containerName`
+- `functionPlanSku`
 - `staticWebAppSku`
 - `staticWebAppRepositoryUrl` (GitHub連携を使う場合)
+
+`functionPlanSku` の目安:
+
+- `Y1`: Consumption。Dynamic VMs クォータが必要
+- `B1`: Dedicated Basic。クォータ制約を避けやすい代わりに常時課金
 
 ### デプロイ実行
 
@@ -167,6 +175,56 @@ az deployment group create \
 	--parameters infra/main.parameters.json
 ```
 
+### Azure Functions の配信手順
+
+1. Function App の Publish Profile を取得
+
+Portal 手順:
+
+- Azure Portal で対象の Function App を開く
+- `概要` を開く
+- 上部メニューの `発行プロファイルの取得` を押す
+- ダウンロードされた `.PublishSettings` の内容を GitHub Secret にそのまま貼り付ける
+
+補足:
+
+- 例の Function App 名: `monooki-dev-eastus-func`
+- この名前は `projectName=monooki` / `environmentName=dev` / `location=eastus` 前提
+
+2. GitHub Secrets に以下を登録
+
+- `AZURE_FUNCTIONAPP_NAME`
+- `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
+
+GitHub Secrets の場所:
+
+- GitHub リポジトリを開く
+- `Settings` → `Secrets and variables` → `Actions`
+- `New repository secret` から追加する
+
+3. Function App のアプリ設定に以下を登録
+
+- `AZURE_STORAGE_CONTAINER_NAME`
+- `AZURE_STORAGE_CONNECTION_STRING` または `AZURE_STORAGE_ACCOUNT_NAME` と `AZURE_STORAGE_ACCOUNT_KEY`
+- `AZURE_BLOB_READ_SAS_TOKEN` 必要時のみ
+- `SORACOM_FLUX_WEBHOOK_URL`
+- `SORACOM_FLUX_WEATHER_WEBHOOK_URL`
+
+Portal での設定場所:
+
+- Azure Portal で対象の Function App を開く
+- 左メニューの `設定` → `環境変数`
+- `アプリ設定` タブで `追加`
+- 入力後に `適用` → `確認`
+
+運用メモ:
+
+- `AZURE_STORAGE_CONNECTION_STRING` には SAS ではなく Storage の接続文字列を入れる
+- Blob を非公開で読む必要がある場合だけ `AZURE_BLOB_READ_SAS_TOKEN` に SAS を入れる
+- 独立 Azure Functions 構成で使うなら `infra/main.parameters.json` の `createFunctionApp` は `true` にしておく
+
+4. このリポジトリの [./.github/workflows/azure-functions.yml](/home/kaede/SORACOMProto2026/.github/workflows/azure-functions.yml) で `functions/` をデプロイ
+
 ### Static Web Apps の配信手順
 
 #### A. GitHub Actions連携 (推奨)
@@ -182,13 +240,17 @@ az staticwebapp secrets list \
 
 2. GitHubリポジトリのSecretsに`AZURE_STATIC_WEB_APPS_API_TOKEN`として登録
 
-3. このリポジトリの [./.github/workflows/azure-static-web-apps.yml](/home/kaede/SORACOMProto2026/.github/workflows/azure-static-web-apps.yml) を使って `frontend/` と `functions/` を同時に配信
-4. SWA のアプリケーション設定に以下を登録
-   - `AZURE_STORAGE_CONTAINER_NAME`
-   - `AZURE_STORAGE_CONNECTION_STRING` または `AZURE_STORAGE_ACCOUNT_NAME` と `AZURE_STORAGE_ACCOUNT_KEY`
-   - `AZURE_BLOB_READ_SAS_TOKEN` 必要時のみ
-   - `SORACOM_FLUX_WEBHOOK_URL`
-   - `SORACOM_FLUX_WEATHER_WEBHOOK_URL`
+3. GitHub Secrets に `VITE_API_BASE_URL` を登録
+
+- 例: `https://<function-app-name>.azurewebsites.net`
+
+GitHub Secrets の場所:
+
+- GitHub リポジトリを開く
+- `Settings` → `Secrets and variables` → `Actions`
+- `AZURE_STATIC_WEB_APPS_API_TOKEN` と `VITE_API_BASE_URL` を追加する
+
+4. このリポジトリの [./.github/workflows/azure-static-web-apps.yml](/home/kaede/SORACOMProto2026/.github/workflows/azure-static-web-apps.yml) で `frontend/` を配信
 
 #### B. SWA CLIで手動デプロイ
 
@@ -205,5 +267,24 @@ npx @azure/static-web-apps-cli deploy \
 ### 疎通確認
 
 - Blobコンテナに画像アップロードできること
-- SORACOM Flux WebhookからSWAのWebhookへ到達できること
+- SORACOM Flux WebhookからFunction AppのWebhookへ到達できること
 - フロントから診断結果APIを取得できること
+
+確認 URL 例:
+
+- Function App ベース URL
+  - `https://monooki-dev-eastus-func.azurewebsites.net`
+- 通常診断 webhook
+  - `https://monooki-dev-eastus-func.azurewebsites.net/api/flux-webhook`
+- 天気診断 webhook
+  - `https://monooki-dev-eastus-func.azurewebsites.net/api/weather-flux-webhook`
+- 通常診断結果取得
+  - `https://monooki-dev-eastus-func.azurewebsites.net/api/diagnosis-result?requestId=<requestId>`
+- 天気診断結果取得
+  - `https://monooki-dev-eastus-func.azurewebsites.net/api/weather-diagnosis-result?requestId=<requestId>`
+
+確認の見方:
+
+- `/api/flux-webhook` と `/api/weather-flux-webhook` はブラウザで直接開く用途ではない
+- `/api/diagnosis-result` と `/api/weather-diagnosis-result` は `requestId` なしだと 400 になる
+- Blob 画像 URL を直接開いて `ResourceNotFound` なら、返却 URL と実在する Blob 名がずれている可能性が高い
