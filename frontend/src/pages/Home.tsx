@@ -5,25 +5,42 @@ export default function Home() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-blue-100 to-white">
-      <div className="mb-6">
-        <KoupenSVG size={120} />
+    <div className="inspection-shell bg-gradient-to-b from-blue-100 to-white">
+      <div className="inspection-panel">
+        <div className="inspection-topbar">
+          <span className="inspection-code">MONOOKI DIAGNOSIS</span>
+          <span className="inspection-chip">standby</span>
+        </div>
+        <div className="inspection-body">
+          <div className="inspection-hero">
+            <div className="inspection-mascot">
+              <KoupenSVG size={120} />
+            </div>
+            <div>
+              <p className="inspection-kicker">
+                Storage Environment Assessment
+              </p>
+              <h1 className="inspection-title">もの置き環境 診断受付</h1>
+              <p className="inspection-lead">
+                保管予定場所の状態を確認し、設置可否を判定します。
+                <br />
+                温湿度、撮影画像、必要に応じて天気予報を用いて評価します。
+              </p>
+            </div>
+          </div>
+          <div className="inspection-divider" />
+          <div className="inspection-grid">
+            <div className="inspection-card">
+              <button
+                onClick={() => navigate("/camera")}
+                className="inspection-button inspection-button-primary"
+              >
+                診断を開始する
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-      <h1 className="text-2xl font-bold text-blue-700 mb-2">
-        もの置き診断へようこそ！
-      </h1>
-      <p className="text-lg text-gray-700 mb-6 text-center max-w-md">
-        <br />
-        今の環境に物を置いて大丈夫かを診断するよ！
-        <br />
-        温湿度・画像・天気予報を使って判定するよ！
-      </p>
-      <button
-        onClick={() => navigate("/camera")}
-        className="bg-blue-400 hover:bg-blue-500 transition text-white px-8 py-4 rounded-full text-xl shadow-lg"
-      >
-        もの置き診断をはじめる
-      </button>
     </div>
   );
 }

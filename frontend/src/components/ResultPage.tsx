@@ -32,8 +32,8 @@ interface ResultPageProps {
 export function ResultPage({
   diagnosisEndpoint,
   maxRetries = 30,
-  loadingNote = "GPSマルチユニットの温湿度と写真からもの置きの相性を診断してるよ〜！",
-  footerNote = "設置前にリスクを確認して、物を長持ちさせよう",
+  loadingNote = "GPSマルチユニットの温湿度と撮影画像を照合し、保管可否を評価しています。",
+  footerNote = "設置前に環境条件を確認し、保管対象への負荷を抑制してください。",
 }: ResultPageProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -44,7 +44,9 @@ export function ResultPage({
 
   useEffect(() => {
     if (!requestId) {
-      setError("requestId が見つかりません。もう一度撮影してください。");
+      setError(
+        "受付番号を確認できませんでした。再度撮影からやり直してください。",
+      );
       setLoading(false);
       return;
     }
@@ -69,7 +71,7 @@ export function ResultPage({
         }
       } catch (err) {
         console.error("結果取得エラー:", err);
-        setError("診断結果の取得中にエラーが発生しました。");
+        setError("診断結果の取得処理でエラーが発生しました。");
         setLoading(false);
         return true;
       }
@@ -82,7 +84,7 @@ export function ResultPage({
       if (!done) {
         retries += 1;
         if (retries > maxRetries) {
-          setError("診断結果の取得がタイムアウトしました。");
+          setError("診断結果の取得が規定時間内に完了しませんでした。");
           setLoading(false);
           return;
         }
@@ -98,17 +100,37 @@ export function ResultPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-100 to-white">
-        <KoupenSVG />
-        <h1 className="text-2xl font-bold mb-4 text-blue-700">診断中だよ〜</h1>
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4" />
-          <p className="text-gray-600">
-            SORACOM Fluxで診断中だよ、ちょっとまっててね～
-          </p>
-          <p className="text-sm text-gray-500 mt-2 text-center">
-            {loadingNote}
-          </p>
+      <div className="inspection-shell bg-gradient-to-b from-blue-100 to-white">
+        <div className="inspection-panel">
+          <div className="inspection-topbar">
+            <span className="inspection-code">ANALYSIS REPORT</span>
+            <span className="inspection-chip">processing</span>
+          </div>
+          <div className="inspection-body">
+            <div className="inspection-hero">
+              <div className="inspection-mascot">
+                <KoupenSVG />
+              </div>
+              <div>
+                <p className="inspection-kicker">Assessment Processing</p>
+                <h1 className="inspection-title">診断処理を実行中です</h1>
+                <p className="inspection-lead">
+                  SORACOM Flux
+                  上で環境診断を実行しています。結果反映までお待ちください。
+                </p>
+              </div>
+            </div>
+            <div className="inspection-divider" />
+            <div className="inspection-card">
+              <div className="inspection-status">analysis in progress</div>
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 inspection-spinner mb-4" />
+                <p className="text-sm text-gray-500 mt-2 text-center">
+                  {loadingNote}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -116,17 +138,37 @@ export function ResultPage({
 
   if (error || !result) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-100 to-white">
-        <KoupenSVG />
-        <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mt-4">
-          <h1 className="text-2xl font-bold mb-6 text-red-600">エラー</h1>
-          <p className="mb-6">{error ?? "診断結果が見つかりませんでした"}</p>
-          <button
-            onClick={() => navigate("/")}
-            className="bg-blue-500 text-white px-6 py-3 rounded-lg w-full"
-          >
-            もう一度撮影する
-          </button>
+      <div className="inspection-shell bg-gradient-to-b from-blue-100 to-white">
+        <div className="inspection-panel">
+          <div className="inspection-topbar">
+            <span className="inspection-code">ANALYSIS REPORT</span>
+            <span className="inspection-chip">error</span>
+          </div>
+          <div className="inspection-body">
+            <div className="inspection-hero">
+              <div className="inspection-mascot">
+                <KoupenSVG />
+              </div>
+              <div>
+                <p className="inspection-kicker">Processing Exception</p>
+                <h1 className="inspection-title text-red-600">
+                  結果取得に失敗しました
+                </h1>
+                <p className="inspection-lead">
+                  {error ?? "診断結果を確認できませんでした"}
+                </p>
+              </div>
+            </div>
+            <div className="inspection-divider" />
+            <div className="inspection-card">
+              <button
+                onClick={() => navigate("/")}
+                className="inspection-button inspection-button-primary"
+              >
+                診断受付へ戻る
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -135,54 +177,78 @@ export function ResultPage({
   const placement = readOutputText(
     result.output,
     ["placement", "shindan", "judge", "summary"],
-    "判定情報がありません",
+    "判定情報は記録されていません",
   );
   const advice = readOutputText(
     result.output,
     ["advice", "recommend", "countermeasure"],
-    "アドバイス情報がありません",
+    "対策情報は記録されていません",
   );
   const forecastNote = readOutputText(
     result.output,
     ["forecastNote", "weather", "forecast", "weatherAdvice"],
-    "予報連動コメントはありません",
+    "予報連動情報は記録されていません",
   );
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-100 to-white">
-      <KoupenSVG />
-      <h1 className="text-2xl font-bold mb-4 text-blue-700">
-        診断結果だよ〜！
-      </h1>
-      <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-        <div className="mb-4 text-gray-800 text-center space-y-2">
-          <p>
-            <span className="font-bold">総合判定：</span>
-            {placement}
-          </p>
-          <p>
-            <span className="font-bold">AIアドバイス：</span>
-            {advice}
-          </p>
-          <p>
-            <span className="font-bold">予報連動：</span>
-            {forecastNote}
-          </p>
+    <div className="inspection-shell bg-gradient-to-b from-blue-100 to-white">
+      <div className="inspection-panel">
+        <div className="inspection-topbar">
+          <span className="inspection-code">ANALYSIS REPORT</span>
+          <span className="inspection-chip">completed</span>
         </div>
-        <button
-          onClick={() => navigate("/")}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg w-full transition mb-2"
-        >
-          もう一度診断する
-        </button>
-        <button
-          onClick={() => navigate("/weathercamera")}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg w-full transition"
-        >
-          天気予報も含めて診断する
-        </button>
+        <div className="inspection-body">
+          <div className="inspection-hero">
+            <div className="inspection-mascot">
+              <KoupenSVG />
+            </div>
+            <div>
+              <p className="inspection-kicker">Assessment Result</p>
+              <h1 className="inspection-title">診断結果報告</h1>
+              <p className="inspection-lead">
+                保管環境に対する判定結果と推奨対応を確認できます。
+              </p>
+            </div>
+          </div>
+          <div className="inspection-divider" />
+          <div className="inspection-grid">
+            <div className="inspection-card">
+              <div className="inspection-status">report available</div>
+              <div className="inspection-report">
+                <div className="inspection-row">
+                  <p className="inspection-label">総合判定</p>
+                  <p className="inspection-value">{placement}</p>
+                </div>
+                <div className="inspection-row">
+                  <p className="inspection-label">推奨対応</p>
+                  <p className="inspection-value">{advice}</p>
+                </div>
+                <div className="inspection-row">
+                  <p className="inspection-label">予報参照</p>
+                  <p className="inspection-value">{forecastNote}</p>
+                </div>
+              </div>
+            </div>
+            <div className="inspection-actions">
+              <button
+                onClick={() => navigate("/")}
+                className="inspection-button inspection-button-primary"
+              >
+                新しい診断を開始する
+              </button>
+              <button
+                onClick={() => navigate("/weathercamera")}
+                className="inspection-button inspection-button-secondary"
+              >
+                予報連動診断へ進む
+              </button>
+            </div>
+            <div className="inspection-footer-note text-center">
+              {footerNote}
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="mt-8 text-xs text-gray-400 text-center">{footerNote}</div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { CameraPage } from "../components/CameraPage";
 export default function WeatherCamera() {
   return (
     <CameraPage
-      title="天気予報連携カメラ"
+      title="予報連動撮影診断"
       triggerEndpoint="weather-torriger-flux"
       resultPath="/weatherresult"
     />

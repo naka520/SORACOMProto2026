@@ -74,7 +74,7 @@ export function CameraPage({
       setCameraError(null);
     } catch {
       setCameraError(
-        "カメラにアクセスできませんでした。カメラの使用許可を確認してね〜！",
+        "カメラ映像を取得できませんでした。端末のカメラ利用設定をご確認ください。",
       );
     }
   };
@@ -162,79 +162,117 @@ export function CameraPage({
       navigate(`${resultPath}?requestId=${encodeURIComponent(requestId)}`);
     } catch (error) {
       console.error("診断エラー:", error);
-      alert(error instanceof Error ? error.message : "診断に失敗しました");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "診断処理を開始できませんでした",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-100 to-white">
-      <div className="mb-4">
-        <KoupenSVG />
-      </div>
-      <h1 className="text-2xl font-bold mb-2 text-blue-700">{title}</h1>
-      <p className="text-lg text-gray-700 mb-6 text-center max-w-md">
-        置きたい物をカメラで撮影してね〜！
-      </p>
-
-      {cameraError && (
-        <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 max-w-md w-full">
-          {cameraError}
+    <div className="inspection-shell bg-gradient-to-b from-blue-100 to-white">
+      <div className="inspection-panel">
+        <div className="inspection-topbar">
+          <span className="inspection-code">CAPTURE SESSION</span>
+          <span className="inspection-chip">
+            {cameraActive ? "recording" : "standby"}
+          </span>
         </div>
-      )}
-
-      {!imageData ? (
-        <div className="w-full max-w-md">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className="w-full rounded-lg shadow-lg mb-4"
-          />
-          <canvas ref={canvasRef} className="hidden" />
-          {cameraActive && (
-            <button
-              onClick={captureImage}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-full text-xl shadow-lg w-full transition"
-            >
-              撮影する
-            </button>
-          )}
-          {!cameraActive && !cameraError && (
-            <button
-              onClick={initCamera}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-full text-xl shadow-lg w-full transition"
-            >
-              カメラを起動する
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="w-full max-w-md">
-          <img
-            src={imageData}
-            alt="撮影した画像"
-            className="w-full rounded-lg shadow-lg mb-4"
-          />
-          <canvas ref={canvasRef} className="hidden" />
-          <div className="flex gap-4">
-            <button
-              onClick={retakeImage}
-              className="flex-1 bg-gray-400 hover:bg-gray-500 text-white px-4 py-3 rounded-lg transition"
-            >
-              撮り直す
-            </button>
-            <button
-              onClick={handleDiagnose}
-              disabled={loading}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg transition disabled:opacity-50"
-            >
-              {loading ? "送信中…" : "診断する"}
-            </button>
+        <div className="inspection-body">
+          <div className="inspection-hero">
+            <div className="inspection-mascot">
+              <KoupenSVG />
+            </div>
+            <div>
+              <p className="inspection-kicker">Visual Evidence Intake</p>
+              <h1 className="inspection-title">{title}</h1>
+              <p className="inspection-lead">
+                診断対象の設置環境を撮影し、記録用画像を登録してください。
+              </p>
+            </div>
           </div>
+
+          <div className="inspection-divider" />
+
+          {cameraError && (
+            <div className="inspection-alert mb-6">{cameraError}</div>
+          )}
+
+          {!imageData ? (
+            <div className="inspection-grid">
+              <div className="inspection-card">
+                <div className="inspection-section-title">
+                  Current Capture View
+                </div>
+                <div className="inspection-frame mb-4">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="inspection-media"
+                  />
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+                <p className="inspection-note">
+                  対象物と周辺環境が確認できるよう、画面中央に収めてください。
+                </p>
+              </div>
+              <div className="inspection-actions">
+                {cameraActive && (
+                  <button
+                    onClick={captureImage}
+                    className="inspection-button inspection-button-primary"
+                  >
+                    現在の画像を記録する
+                  </button>
+                )}
+                {!cameraActive && !cameraError && (
+                  <button
+                    onClick={initCamera}
+                    className="inspection-button inspection-button-primary"
+                  >
+                    カメラ確認を開始する
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="inspection-grid">
+              <div className="inspection-card">
+                <div className="inspection-section-title">
+                  Captured Evidence
+                </div>
+                <div className="inspection-frame mb-4">
+                  <img
+                    src={imageData}
+                    alt="撮影した画像"
+                    className="inspection-media"
+                  />
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+              <div className="inspection-actions two-up">
+                <button
+                  onClick={retakeImage}
+                  className="inspection-button inspection-button-secondary"
+                >
+                  再撮影する
+                </button>
+                <button
+                  onClick={handleDiagnose}
+                  disabled={loading}
+                  className="inspection-button inspection-button-success disabled:opacity-50"
+                >
+                  {loading ? "診断要求を送信中..." : "この内容で診断する"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
